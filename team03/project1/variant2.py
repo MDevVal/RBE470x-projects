@@ -1,6 +1,6 @@
 # This is necessary to find the main code
 import sys
-sys.path.insert(0, '../../bomberman')
+sys.path.insert(0, '../../Bomberman')
 sys.path.insert(1, '..')
 
 # Import necessary stuff
