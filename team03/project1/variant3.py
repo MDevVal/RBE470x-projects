@@ -1,6 +1,6 @@
 # This is necessary to find the main code
 import sys
-sys.path.insert(0, '../../Bomberman')
+sys.path.insert(0, '../../bomberman')
 sys.path.insert(1, '..')
 
 # Import necessary stuff
@@ -9,8 +9,8 @@ from game import Game
 from monsters.selfpreserving_monster import SelfPreservingMonster
 
 # TODO This is your code!
-sys.path.insert(1, '../teamNN')
-from testcharacter import TestCharacter
+sys.path.insert(1, '../team03')
+from bennichar import BenniChar
 
 # Create the game
 random.seed(123) # TODO Change this if you want different random choices
@@ -22,10 +22,10 @@ g.add_monster(SelfPreservingMonster("selfpreserving", # name
 ))
 
 # TODO Add your character
-g.add_character(TestCharacter("me", # name
+g.add_character(BenniChar("me", # name
                               "C",  # avatar
                               0, 0  # position
 ))
 
 # Run!
-g.go()
+g.go(1)

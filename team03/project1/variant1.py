@@ -1,36 +1,39 @@
 # This is necessary to find the main code
 import sys
-sys.path.insert(0, '../../Bomberman')
+sys.path.insert(0, '../../bomberman')
 sys.path.insert(1, '..')
 
 # Import necessary stuff
 from game import Game
 
 # TODO This is your code!
-sys.path.insert(1, '../teamNN')
+sys.path.insert(1, '../')
 
 # Uncomment this if you want the empty test character
-#from testcharacter import TestCharacter
+#from bennichar import BenniChar
 
 # Uncomment this if you want the interactive character
-from interactivecharacter import InteractiveCharacter
+#from interactivecharacter import InteractiveCharacter
+
+# Uncomment if you trust Benni
+from bennichar import BenniChar
 
 # Create the game
 g = Game.fromfile('map.txt')
 
 # TODO Add your character
 
-# Uncomment this if you want the test character
-# g.add_character(TestCharacter("me", # name
-#                               "C",  # avatar
-#                               0, 0  # position
-# ))
+#Uncomment this if you want the test character
+g.add_character(BenniChar("me", # name
+                              "C",  # avatar
+                              0, 0  # position
+))
 
 # Uncomment this if you want the interactive character
-g.add_character(InteractiveCharacter("me", # name
-                                     "C",  # avatar
-                                     0, 0  # position
-))
+#g.add_character(InteractiveCharacter("me", # name
+#                                     "C",  # avatar
+#                                     0, 0  # position
+#))
 
 # Run!
 
