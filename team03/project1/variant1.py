@@ -10,13 +10,13 @@ from game import Game
 sys.path.insert(1, '../')
 
 # Uncomment this if you want the empty test character
-#from bennichar import BenniChar
+#from team3char import Team3Char
 
 # Uncomment this if you want the interactive character
 #from interactivecharacter import InteractiveCharacter
 
 # Uncomment if you trust Benni
-from bennichar import BenniChar
+from team3char import Team3Char
 
 # Create the game
 g = Game.fromfile('map.txt')
@@ -24,7 +24,7 @@ g = Game.fromfile('map.txt')
 # TODO Add your character
 
 #Uncomment this if you want the test character
-g.add_character(BenniChar("me", # name
+g.add_character(Team3Char("me", # name
                               "C",  # avatar
                               0, 0  # position
 ))

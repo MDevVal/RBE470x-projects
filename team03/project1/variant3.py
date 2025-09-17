@@ -10,7 +10,7 @@ from monsters.selfpreserving_monster import SelfPreservingMonster
 
 # TODO This is your code!
 sys.path.insert(1, '../team03')
-from bennichar import BenniChar
+from team3char import Team3Char
 
 # Create the game
 random.seed(123) # TODO Change this if you want different random choices
@@ -22,7 +22,7 @@ g.add_monster(SelfPreservingMonster("selfpreserving", # name
 ))
 
 # TODO Add your character
-g.add_character(BenniChar("me", # name
+g.add_character(Team3Char("me", # name
                               "C",  # avatar
                               0, 0  # position
 ))
