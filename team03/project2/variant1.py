@@ -7,18 +7,20 @@ sys.path.insert(1, '..')
 from game import Game
 
 # TODO This is your code!
-sys.path.insert(1, '../teamNN')
-from testcharacter import TestCharacter
+sys.path.insert(1, '../team03')
+from team3qchar import QChar 
 
+qchar = QChar(
+    "me", # name
+    "C",  # avatar
+    0, 0  # position
+)
 
 # Create the game
-g = Game.fromfile('map.txt')
+while True:
+    g = Game.fromfile('map.txt')
 
-# TODO Add your character
-g.add_character(TestCharacter("me", # name
-                              "C",  # avatar
-                              0, 0  # position
-))
+    g.add_character(qchar)
 
-# Run!
-g.go()
+    g.go(1)
+    pass

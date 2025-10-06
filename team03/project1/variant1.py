@@ -13,7 +13,7 @@ sys.path.insert(1, '../')
 #from team3char import Team3Char
 
 # Uncomment this if you want the interactive character
-#from interactivecharacter import InteractiveCharacter
+efrom interactivecharacter import InteractiveCharacter
 
 # Uncomment if you trust Benni
 from team3char import Team3Char
