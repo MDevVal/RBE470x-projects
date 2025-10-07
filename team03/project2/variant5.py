@@ -10,11 +10,11 @@ from monsters.stupid_monster import StupidMonster
 from monsters.selfpreserving_monster import SelfPreservingMonster
 
 # TODO This is your code!
-sys.path.insert(1, '../teamNN')
-from testcharacter import TestCharacter
+sys.path.insert(1, '../team03')
+from team3qchar import QChar 
 
 # Create the game
-random.seed(123) # TODO Change this if you want different random choices
+random.seed() # TODO Change this if you want different random choices
 g = Game.fromfile('map.txt')
 g.add_monster(StupidMonster("stupid", # name
                             "S",      # avatar
@@ -26,11 +26,18 @@ g.add_monster(SelfPreservingMonster("aggressive", # name
                                     2             # detection range
 ))
 
-# TODO Add your character
-g.add_character(TestCharacter("me", # name
-                              "C",  # avatar
-                              0, 0  # position
-))
+qchar = QChar("me", # name
+              "C",  # avatar
+              0, 0  # position
+              )
+
+qchar.load_model("variant_5.pt")
+
+g.add_character(qchar)
 
 # Run!
-g.go()
+g.go(1)
+
+qchar.save_model("variant_5.pt")
+
+

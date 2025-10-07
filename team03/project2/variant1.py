@@ -9,18 +9,23 @@ from game import Game
 # TODO This is your code!
 sys.path.insert(1, '../team03')
 from team3qchar import QChar 
-
-qchar = QChar(
-    "me", # name
-    "C",  # avatar
-    0, 0  # position
+qchar = QChar("me", # name
+                              "C",  # avatar
+                              0, 0  # position
 )
 
+qchar.load_model("variant_1.pt")
+
 # Create the game
-while True:
-    g = Game.fromfile('map.txt')
+g = Game.fromfile('map.txt')
 
-    g.add_character(qchar)
+# TODO Add your character
+g.add_character(QChar("me", # name
+                              "C",  # avatar
+                              0, 0  # position
+))
 
-    g.go(1)
-    pass
+# Run!
+g.go(1)
+
+qchar.save_model("variant_1.pt")
