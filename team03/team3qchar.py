@@ -106,10 +106,14 @@ class QChar(CharacterEntity):
         self.episode_reward = 0.0  # Track cumulative reward
 
     def do(self, wrld):
+        # If we're already standing on the exit, stop acting.
+        if self._on_exit(wrld):
+            return
+
         # Current state features
         state = self._featurize(wrld).to(self.device)
 
-        # Choose action using one-step look-ahead; also get simulated next info
+        # Choose action using one-step look-ahead (with exit priority)
         (a_idx,
          sim_next_world,
          sim_events,
@@ -130,11 +134,7 @@ class QChar(CharacterEntity):
         if (self.total_steps % self.train_every) == 0 and len(self.buffer) >= self.batch_size:
             self._optimize()
 
-        # Periodic auto-save during training
-        if self.total_steps > 0 and self.total_steps % 500 == 0:
-            self.save_model('qchar_model_latest.pt')
-
-        # Execute the chosen action in the real world
+        # Execute the chosen action in the real world (do NOT gate on simulated 'done')
         name, (dx, dy), bomb = self.ACTIONS[a_idx]
         if bomb:
             try:
@@ -152,6 +152,7 @@ class QChar(CharacterEntity):
         self._update_epsilon()
         if self.total_steps % self.target_update_every == 0:
             self.target.load_state_dict(self.policy.state_dict())
+
 
     def reset_episode(self):
         """Call this at the start of each new game/episode"""
@@ -185,21 +186,51 @@ class QChar(CharacterEntity):
 
     # ---------- Action selection w/ look-ahead safety mask ----------
     def _choose_and_simulate(self, wrld, state_t):
+        # If already on the exit, just 'stay'
+        if self._on_exit(wrld):
+            forced_idx = 0  # "stay"
+            sim_w2, sim_events, me_alive_after, next_feat = self._simulate_action(wrld, forced_idx)
+            r, d = self._lookahead_reward(wrld, sim_w2, sim_events, forced_idx)
+            return forced_idx, sim_w2, sim_events, r, d, next_feat
+
+        # If the exit is adjacent, short-circuit and choose that move
+        forced = self._adjacent_exit_action(wrld)
+        if forced is not None:
+            sim_w2, sim_events, me_alive_after, next_feat = self._simulate_action(wrld, forced)
+            r, d = self._lookahead_reward(wrld, sim_w2, sim_events, forced)
+            return forced, sim_w2, sim_events, r, d, next_feat
+
         sims = []
         safe_idxs = []
+        exit_idxs = []
 
         for i in range(self.n_actions):
             sim_w2, sim_events, me_alive_after, next_feat = self._simulate_action(wrld, i)
             r, d = self._lookahead_reward(wrld, sim_w2, sim_events, i)
             sims.append((sim_w2, sim_events, r, d, next_feat, me_alive_after))
-            if me_alive_after:
+
+            # Detect exit on this simulated step
+            hit_exit = any(
+                (e.tpe == Event.CHARACTER_FOUND_EXIT) and self._same_char(e.character)
+                for e in sim_events
+            )
+            if hit_exit:
+                exit_idxs.append(i)
+
+            # Safety: allow if we're alive after OR if the action hits exit
+            if me_alive_after or hit_exit:
                 safe_idxs.append(i)
 
+        # If any action leads to exit within one step, hard-prioritize that (prefer movement)
+        if exit_idxs:
+            move_candidates = [i for i in exit_idxs if not self.ACTIONS[i][2]]  # not a bomb
+            a_idx = random.choice(move_candidates) if move_candidates else random.choice(exit_idxs)
+            sim_next_world, sim_events, reward, done, next_feat, _ = sims[a_idx]
+            return a_idx, sim_next_world, sim_events, reward, done, next_feat
+
+        # Epsilon-greedy over (safe) actions
         if random.random() < self.epsilon:
-            if safe_idxs:
-                a_idx = random.choice(safe_idxs)
-            else:
-                a_idx = random.randrange(self.n_actions)
+            a_idx = random.choice(safe_idxs) if safe_idxs else random.randrange(self.n_actions)
         else:
             with torch.no_grad():
                 q = self.policy(state_t.unsqueeze(0)).squeeze(0)  # (A,)
@@ -211,6 +242,7 @@ class QChar(CharacterEntity):
 
         sim_next_world, sim_events, reward, done, next_feat, _ = sims[a_idx]
         return a_idx, sim_next_world, sim_events, reward, done, next_feat
+
 
     def _simulate_action(self, wrld, a_idx):
         wcopy = self._copy_world(wrld)
@@ -251,63 +283,51 @@ class QChar(CharacterEntity):
     # ---------- Reward from simulated events ----------
     def _lookahead_reward(self, w_before, w_after, events, action_idx):
         reward = 0.0
-        done = False
-
-        me_before = self._find_me(w_before)
-        me_after  = self._find_me(w_after)
-
-        # Parse events caused by the simulated tick
-        for e in events:
+        done   = False
+        win    = False
+        me_b = self._find_me(w_before)
+        me_a = self._find_me(w_after)
+        
+        # 1) Primary events
+        for e in (events or []):
             if e.tpe == Event.CHARACTER_KILLED_BY_MONSTER and self._same_char(e.character):
-                reward -= 10.0
-                done = True
-            elif e.tpe == Event.CHARACTER_FOUND_EXIT and self._same_char(e.character):
-                print("Exit Found!")
-                reward += 100.0
-                done = True
+                reward -= 50.0; done = True
             elif e.tpe == Event.BOMB_HIT_CHARACTER and self._same_char(e.other):
-                reward -= 15.0  # Heavy penalty for getting hit by bomb
+                reward -= 50.0; done = True
+            elif e.tpe == Event.CHARACTER_FOUND_EXIT and self._same_char(e.character):
+                # Bonus for finding exit quickly
+                time_bonus = max(0, 1000 - self.episode_steps)  # Up to 100 bonus for speed
+                reward += 500.0 + time_bonus
                 done = True
-
-        # If we simply don't exist after the tick, it's terminal death
-        if me_before is not None and me_after is None:
-            reward -= 50.0
-            done = True
-
-        # CRITICAL: Penalize being in danger zones
-        if me_after is not None and not done:
-            if self._is_tile_dangerous(w_after, me_after.x, me_after.y):
-                reward -= 8.0  # Strong penalty for being in danger
-            
-            # Additional penalty for staying near bombs
-            danger_proximity = self._get_danger_proximity(w_after, me_after.x, me_after.y)
-            reward -= danger_proximity * 2.0
-
-        # Discourage excessive bombing
-        name, (dx, dy), is_bomb = self.ACTIONS[action_idx]
-        if is_bomb:
-            # Penalize bombing if we just bombed recently
-            if self.total_steps - self.last_bomb_step < 10:
-                reward -= 5.0
-            if me_after is not None:
-                escape_routes = self._count_escape_routes(w_after, me_after.x, me_after.y)
-                if escape_routes < 2:
-                    reward -= 10.0  # Don't bomb if trapped
-
-        # Shaping: distance to exit (before -> after)
-        ex = getattr(w_before, "exitcell", None)
-        if ex is not None and me_before is not None and me_after is not None:
-            exx, exy = ex
-            d0 = abs(me_before.x - exx) + abs(me_before.y - exy)
-            d1 = abs(me_after.x - exx) + abs(me_after.y - exy)
-            delta = d0 - d1
-            # Reward for moving closer, penalize for moving away
-            reward += 0.5 * delta
-
-        # Small negative reward for staying still (encourage exploration)
-        if action_idx == 0:  # stay action
-            reward -= 0.1
-
+                win = True
+        
+        # 4) Delta distance shaping toward exit 
+        ex_before = getattr(w_before, "exitcell", None)
+        if (not done) and (ex_before is not None) and (me_b is not None) and (me_a is not None):
+            d0 = abs(me_b.x - ex_before[0]) + abs(me_b.y - ex_before[1])
+            d1 = abs(me_a.x - ex_before[0]) + abs(me_a.y - ex_before[1])
+            reward += 2.0 * (d0 - d1)   # Increased from 0.5 to encourage moving toward exit
+            reward -= 1              # Increased step penalty from 0.05 to discourage wandering
+        
+        # 5) Danger shaping (only if still alive and non-terminal)
+        # if (not done) and (me_a is not None):
+        #     if self._is_tile_dangerous(w_after, me_a.x, me_a.y):
+        #         reward -= 8.0
+        #     danger_prox = self._get_danger_proximity(w_after, me_a.x, me_a.y)
+        #     reward -= 2.0 * danger_prox
+        #
+        # # 6) Bomb shaping
+        # name, (dx, dy), is_bomb = self.ACTIONS[action_idx]
+        # if is_bomb:
+        #     if self.total_steps - self.last_bomb_step < 10:
+        #         reward -= 5.0
+        #     if (not done) and (me_a is not None) and self._count_escape_routes(w_after, me_a.x, me_a.y) < 2:
+        #         reward -= 10.0
+        
+        # 7) Penalize staying in place (encourage exploration)
+        if action_idx == 0 and not done:  # "stay" action
+            reward -= 0.5
+        
         return reward, done
 
     def _get_danger_proximity(self, wrld, x, y):
@@ -455,6 +475,32 @@ class QChar(CharacterEntity):
             return getattr(c, "name", None) == getattr(self, "name", None)
         except Exception:
             return False
+    def _adjacent_exit_action(self, wrld):
+        me = self._find_me(wrld)
+        ex = getattr(wrld, "exitcell", None)
+        if me is None or ex is None:
+            return None
+
+        exx, exy = ex
+        dx = exx - me.x
+        dy = exy - me.y
+        if abs(dx) + abs(dy) != 1:
+            return None
+
+        # Blocked by wall? (defensive)
+        if wrld.wall_at(exx, exy):
+            return None
+
+        dir_to_idx = {(0, -1): 1, (0, 1): 2, (-1, 0): 3, (1, 0): 4}
+        return dir_to_idx.get((dx, dy))
+
+    def _on_exit(self, wrld):
+        me = self._find_me(wrld)
+        ex = getattr(wrld, "exitcell", None)
+        if me is None or ex is None:
+            return False
+        return (me.x, me.y) == tuple(ex)
+
 
     def _is_tile_dangerous(self, wrld, x, y):
         try:

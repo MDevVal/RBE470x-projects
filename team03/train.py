@@ -25,6 +25,7 @@ def run_variant(variant_num, num_episodes, timeout_sec):
             )
             output = (result.stdout or "") + (result.stderr or "")
 
+            print(output)
             if "exit" in output:
                 outcome = "win"
             elif "self" in output:
@@ -53,7 +54,7 @@ def run_variant(variant_num, num_episodes, timeout_sec):
 
 def main():
     num_episodes = 1000
-    variants = [1, 2, 3, 4, 5]
+    variants = [1]
     timeout_sec = 30
 
     missing = [f"variant{v}.py" for v in variants if not os.path.exists(f"variant{v}.py")]

@@ -9,23 +9,26 @@ from game import Game
 # TODO This is your code!
 sys.path.insert(1, '../team03')
 from team3qchar import QChar 
+
 qchar = QChar("me", # name
-                              "C",  # avatar
-                              0, 0  # position
-)
+                                  "C",  # avatar
+                                  0, 0  # position
+) 
 
-qchar.load_model("variant_1.pt")
+i = 0
+while True:
+    g = Game.fromfile('map.txt')
+    
 
-# Create the game
-g = Game.fromfile('map.txt')
+    g.add_character(qchar)
+    qchar.x = 0
+    qchar.y = 0
 
-# TODO Add your character
-g.add_character(QChar("me", # name
-                              "C",  # avatar
-                              0, 0  # position
-))
+    g.go(1)
+    
+    i += 1
+    if i % 100 == 0:
+        qchar.save_model(f"variant_{i}.pt")
+        qchar.reset_episode()
 
-# Run!
-g.go(1)
-
-qchar.save_model("variant_1.pt")
+    print(f"Iteration {i}")
