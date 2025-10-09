@@ -9,12 +9,10 @@ from game import Game
 from monsters.stupid_monster import StupidMonster
 from monsters.selfpreserving_monster import SelfPreservingMonster
 
-# TODO This is your code!
 sys.path.insert(1, '../team03')
 from team3qchar import QChar 
 
-# Create the game
-random.seed() # TODO Change this if you want different random choices
+random.seed()
 g = Game.fromfile('map.txt')
 g.add_monster(StupidMonster("stupid", # name
                             "S",      # avatar
@@ -31,13 +29,6 @@ qchar = QChar("me", # name
               0, 0  # position
               )
 
-qchar.load_model("variant_5.pt")
-
 g.add_character(qchar)
 
-# Run!
 g.go(1)
-
-qchar.save_model("variant_5.pt")
-
-
